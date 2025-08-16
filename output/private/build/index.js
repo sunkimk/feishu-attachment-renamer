@@ -1,137 +1,106 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const block_basekit_server_api_1 = require("@lark-opdev/block-basekit-server-api");
-const { t } = block_basekit_server_api_1.field;
-const feishuDm = ['feishu.cn', 'feishucdn.com', 'larksuitecdn.com', 'larksuite.com'];
-// 通过addDomainList添加请求接口的域名，不可写多个addDomainList，否则会被覆盖
-block_basekit_server_api_1.basekit.addDomainList([...feishuDm, 'api.exchangerate-api.com',]);
+const { t } = block_basekit_server_api_1.field; // 引入 t 函数用于国际化
 block_basekit_server_api_1.basekit.addField({
-    // 定义捷径的i18n语言资源
+    // --- 国际化配置 ---
     i18n: {
         messages: {
             'zh-CN': {
-                'rmb': '人民币金额',
-                'usd': '美元金额',
-                'rate': '汇率',
+                'sourceFieldLabel': '源附件字段',
+                'newPrefixLabel': '新的文件名前缀',
+                'newPrefixPlaceholder': '请输入新的文件名前缀'
             },
             'en-US': {
-                'rmb': 'RMB Amount',
-                'usd': 'Dollar amount',
-                'rate': 'Exchange Rate',
+                'sourceFieldLabel': 'Source Attachment Field',
+                'newPrefixLabel': 'New Filename Prefix',
+                'newPrefixPlaceholder': 'Enter the new filename prefix'
             },
             'ja-JP': {
-                'rmb': '人民元の金額',
-                'usd': 'ドル金額',
-                'rate': '為替レート',
-            },
+                'sourceFieldLabel': 'ソース添付ファイルフィールド',
+                'newPrefixLabel': '新しいファイル名のプレフィックス',
+                'newPrefixPlaceholder': '新しいファイル名のプレフィックスを入力してください'
+            }
         }
     },
-    // 定义捷径的入参
     formItems: [
         {
-            key: 'account',
-            label: t('rmb'),
+            key: 'sourceAttachments',
+            label: t('sourceFieldLabel'), // 使用 t() 函数
             component: block_basekit_server_api_1.FieldComponent.FieldSelect,
             props: {
-                supportType: [block_basekit_server_api_1.FieldType.Number],
+                supportType: [block_basekit_server_api_1.FieldType.Attachment],
             },
             validator: {
                 required: true,
-            }
+            },
+        },
+        {
+            key: 'newPrefix',
+            label: t('newPrefixLabel'), // 使用 t() 函数
+            component: block_basekit_server_api_1.FieldComponent.Input,
+            props: {
+                placeholder: t('newPrefixPlaceholder'), // 使用 t() 函数
+            },
+            validator: {
+                required: true,
+            },
         },
     ],
-    // 定义捷径的返回结果类型
     resultType: {
-        type: block_basekit_server_api_1.FieldType.Object,
-        extra: {
-            icon: {
-                light: 'https://lf3-static.bytednsdoc.com/obj/eden-cn/eqgeh7upeubqnulog/chatbot.svg',
-            },
-            properties: [
-                {
-                    key: 'id',
-                    isGroupByKey: true,
-                    type: block_basekit_server_api_1.FieldType.Text,
-                    label: 'id',
-                    hidden: true,
-                },
-                {
-                    key: 'usd',
-                    type: block_basekit_server_api_1.FieldType.Number,
-                    label: t('usd'),
-                    primary: true,
-                    extra: {
-                        formatter: block_basekit_server_api_1.NumberFormatter.DIGITAL_ROUNDED_2,
-                    }
-                },
-                {
-                    key: 'rate',
-                    type: block_basekit_server_api_1.FieldType.Number,
-                    label: t('rate'),
-                    extra: {
-                        formatter: block_basekit_server_api_1.NumberFormatter.DIGITAL_ROUNDED_4,
-                    }
-                },
-            ],
-        },
+        type: block_basekit_server_api_1.FieldType.Attachment,
     },
-    // formItemParams 为运行时传入的字段参数，对应字段配置里的 formItems （如引用的依赖字段）
     execute: async (formItemParams, context) => {
-        const { account = 0 } = formItemParams;
-        /** 为方便查看日志，使用此方法替代console.log */
-        function debugLog(arg) {
-            // @ts-ignore
-            console.log(JSON.stringify({
-                formItemParams,
-                context,
-                arg
-            }));
-        }
         try {
-            const resText = await context.fetch('https://api.exchangerate-api.com/v4/latest/CNY', {
-                method: 'GET',
-            }).then(res => res.text()); // 不要直接res.json()，这非常容易报错，且难以排查
-            // 请避免使用 debugLog(res) 这类方式输出日志，因为所查到的日志是没有顺序的，为方便排查错误，对每个log进行手动标记顺序
-            debugLog({
-                '===1 接口返回结果': resText
-            });
-            const res = JSON.parse(resText);
-            const usdRate = res?.rates?.['USD'];
-            return {
-                code: block_basekit_server_api_1.FieldCode.Success,
-                data: {
-                    id: `${Math.random()}`,
-                    usd: parseFloat((account * usdRate).toFixed(4)),
-                    rate: usdRate,
-                }
-            };
-            /*
-              如果错误原因明确，想要向使用者传递信息，要避免直接报错，可将错误信息当作成功结果返回：
-      
-            return {
-              code: FieldCode.Success,
-              data: {
-                id: `具体错误原因`,
-                usd: 0,
-                rate: 0,
-              }
+            // @ts-ignore
+            const { sourceAttachments, newPrefix } = formItemParams;
+            // @ts-ignore
+            if (!sourceAttachments || sourceAttachments.length === 0) {
+                return { code: block_basekit_server_api_1.FieldCode.Success, data: [] };
             }
-      
-            */
-        }
-        catch (e) {
-            console.log('====error', String(e));
-            debugLog({
-                '===999 异常错误': String(e)
+            const nameFrequencies = {};
+            // @ts-ignore
+            sourceAttachments.forEach(attachment => {
+                // @ts-ignore
+                const originalName = attachment.name;
+                const lastDotIndex = originalName.lastIndexOf('.');
+                const extension = lastDotIndex !== -1 ? originalName.substring(lastDotIndex) : '';
+                const baseName = `${newPrefix}${extension}`;
+                // @ts-ignore
+                nameFrequencies[baseName] = (nameFrequencies[baseName] || 0) + 1;
             });
-            /** 返回非 Success 的错误码，将会在单元格上显示报错，请勿返回msg、message之类的字段，它们并不会起作用。
-             * 对于未知错误，请直接返回 FieldCode.Error，然后通过查日志来排查错误原因。
-             */
-            return {
-                code: block_basekit_server_api_1.FieldCode.Error,
-            };
+            const duplicateCounters = {};
+            // @ts-ignore
+            const newAttachments = sourceAttachments.map((attachment) => {
+                // @ts-ignore
+                const originalName = attachment.name;
+                const lastDotIndex = originalName.lastIndexOf('.');
+                const extension = lastDotIndex !== -1 ? originalName.substring(lastDotIndex) : '';
+                const baseName = `${newPrefix}${extension}`;
+                let finalName = baseName;
+                // @ts-ignore
+                if (nameFrequencies[baseName] > 1) {
+                    // @ts-ignore
+                    const counter = (duplicateCounters[baseName] || 0) + 1;
+                    // @ts-ignore
+                    duplicateCounters[baseName] = counter;
+                    const nameWithoutExt = baseName.substring(0, baseName.length - extension.length);
+                    finalName = `${nameWithoutExt}_${counter}${extension}`;
+                }
+                return {
+                    name: finalName,
+                    // @ts-ignore
+                    content: attachment.tmp_url,
+                    contentType: 'attachment/url',
+                };
+            });
+            return { code: block_basekit_server_api_1.FieldCode.Success, data: newAttachments };
+        }
+        catch (error) {
+            console.log('批量重命名附件插件出错:', error);
+            return { code: block_basekit_server_api_1.FieldCode.Error };
         }
     },
 });
 exports.default = block_basekit_server_api_1.basekit;
-//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiaW5kZXguanMiLCJzb3VyY2VSb290IjoiIiwic291cmNlcyI6WyIuLi8uLi8uLi9zcmMvaW5kZXgudHMiXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6Ijs7QUFBQSxtRkFBZ0o7QUFDaEosTUFBTSxFQUFFLENBQUMsRUFBRSxHQUFHLGdDQUFLLENBQUM7QUFFcEIsTUFBTSxRQUFRLEdBQUcsQ0FBQyxXQUFXLEVBQUUsZUFBZSxFQUFFLGtCQUFrQixFQUFFLGVBQWUsQ0FBQyxDQUFDO0FBQ3JGLHFEQUFxRDtBQUNyRCxrQ0FBTyxDQUFDLGFBQWEsQ0FBQyxDQUFDLEdBQUcsUUFBUSxFQUFFLDBCQUEwQixFQUFFLENBQUMsQ0FBQztBQUVsRSxrQ0FBTyxDQUFDLFFBQVEsQ0FBQztJQUNmLGdCQUFnQjtJQUNoQixJQUFJLEVBQUU7UUFDSixRQUFRLEVBQUU7WUFDUixPQUFPLEVBQUU7Z0JBQ1AsS0FBSyxFQUFFLE9BQU87Z0JBQ2QsS0FBSyxFQUFFLE1BQU07Z0JBQ2IsTUFBTSxFQUFFLElBQUk7YUFDYjtZQUNELE9BQU8sRUFBRTtnQkFDUCxLQUFLLEVBQUUsWUFBWTtnQkFDbkIsS0FBSyxFQUFFLGVBQWU7Z0JBQ3RCLE1BQU0sRUFBRSxlQUFlO2FBQ3hCO1lBQ0QsT0FBTyxFQUFFO2dCQUNQLEtBQUssRUFBRSxRQUFRO2dCQUNmLEtBQUssRUFBRSxNQUFNO2dCQUNiLE1BQU0sRUFBRSxPQUFPO2FBQ2hCO1NBQ0Y7S0FDRjtJQUNELFVBQVU7SUFDVixTQUFTLEVBQUU7UUFDVDtZQUNFLEdBQUcsRUFBRSxTQUFTO1lBQ2QsS0FBSyxFQUFFLENBQUMsQ0FBQyxLQUFLLENBQUM7WUFDZixTQUFTLEVBQUUseUNBQWMsQ0FBQyxXQUFXO1lBQ3JDLEtBQUssRUFBRTtnQkFDTCxXQUFXLEVBQUUsQ0FBQyxvQ0FBUyxDQUFDLE1BQU0sQ0FBQzthQUNoQztZQUNELFNBQVMsRUFBRTtnQkFDVCxRQUFRLEVBQUUsSUFBSTthQUNmO1NBQ0Y7S0FDRjtJQUNELGNBQWM7SUFDZCxVQUFV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
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiaW5kZXguanMiLCJzb3VyY2VSb290IjoiIiwic291cmNlcyI6WyIuLi8uLi8uLi9zcmMvaW5kZXgudHMiXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6Ijs7QUFBQSxtRkFBNEc7QUFFNUcsTUFBTSxFQUFFLENBQUMsRUFBRSxHQUFHLGdDQUFLLENBQUMsQ0FBQyxlQUFlO0FBRXBDLGtDQUFPLENBQUMsUUFBUSxDQUFDO0lBQ2YsZ0JBQWdCO0lBQ2hCLElBQUksRUFBRTtRQUNKLFFBQVEsRUFBRTtZQUNSLE9BQU8sRUFBRTtnQkFDUCxrQkFBa0IsRUFBRSxPQUFPO2dCQUMzQixnQkFBZ0IsRUFBRSxTQUFTO2dCQUMzQixzQkFBc0IsRUFBRSxZQUFZO2FBQ3JDO1lBQ0QsT0FBTyxFQUFFO2dCQUNQLGtCQUFrQixFQUFFLHlCQUF5QjtnQkFDN0MsZ0JBQWdCLEVBQUUscUJBQXFCO2dCQUN2QyxzQkFBc0IsRUFBRSwrQkFBK0I7YUFDeEQ7WUFDRCxPQUFPLEVBQUU7Z0JBQ1Asa0JBQWtCLEVBQUUsZ0JBQWdCO2dCQUNwQyxnQkFBZ0IsRUFBRSxrQkFBa0I7Z0JBQ3BDLHNCQUFzQixFQUFFLDJCQUEyQjthQUNwRDtTQUNGO0tBQ0Y7SUFFRCxTQUFTLEVBQUU7UUFDVDtZQUNFLEdBQUcsRUFBRSxtQkFBbUI7WUFDeEIsS0FBSyxFQUFFLENBQUMsQ0FBQyxrQkFBa0IsQ0FBQyxFQUFFLFlBQVk7WUFDMUMsU0FBUyxFQUFFLHlDQUFjLENBQUMsV0FBVztZQUNyQyxLQUFLLEVBQUU7Z0JBQ0wsV0FBVyxFQUFFLENBQUMsb0NBQVMsQ0FBQyxVQUFVLENBQUM7YUFDcEM7WUFDRCxTQUFTLEVBQUU7Z0JBQ1QsUUFBUSxFQUFFLElBQUk7YUFDZjtTQUNGO1FBQ0Q7WUFDRSxHQUFHLEVBQUUsV0FBVztZQUNoQixLQUFLLEVBQUUsQ0FBQyxDQUFDLGdCQUFnQixDQUFDLEVBQUUsWUFBWTtZQUN4QyxTQUFTLEVBQUUseUNBQWMsQ0FBQyxLQUFLO1lBQy9CLEtBQUssRUFBRTtnQkFDTCxX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
